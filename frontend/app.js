@@ -1,9 +1,13 @@
 // ===== Config =====
+
+// Replace this with your Railway backend URL after deploy:
+const API_PROD = "https://<your-railway-subdomain>.up.railway.app";
+
 const API = (location.hostname === "127.0.0.1" || location.hostname === "localhost")
   ? "http://127.0.0.1:8000"
-  : (location.origin.replace(/\/$/, "")); // when deployed behind same domain/proxy
+  : API_PROD;
 
-// Fonts per board language (English only in this MVP)
+// Fonts (English-only MVP)
 const FONT_URLS = { en: "./fonts/PatrickHand-Regular.ttf" };
 
 // ===== State =====
@@ -18,7 +22,7 @@ let recordedChunks = [];
 let speaking = false;
 let busy = false;
 let audioRef = null;
-let jwtToken = null;  // simple token stored after login
+let jwtToken = null;
 let currentSubject = "math";
 
 // ===== Utilities =====
@@ -307,7 +311,16 @@ async function speakFetchThenPlay(text) {
   const audio = new Audio(url);
   await new Promise((r) => { audio.addEventListener("loadedmetadata", r, { once: true }); audio.load(); });
   audioRef = audio;
-  audio.play().catch(() => {});
+
+  // Play and finish robustly (ended or timeout)
+  await new Promise((done) => {
+    let finished = false;
+    const bail = () => { if (!finished) { finished = true; done(); } };
+    const timeout = setTimeout(bail, Math.ceil(((audio.duration || 3) + 0.5) * 1000));
+    audio.addEventListener("ended", () => { clearTimeout(timeout); bail(); }, { once: true });
+    audio.play().catch(() => { /* autoplay may block; timeout will fire */ });
+  });
+
   return { audio };
 }
 
@@ -347,7 +360,7 @@ async function runTeacherTurn(say, write_ops) {
   addMsg(say, "tutor");
   await applyWriteOps(write_ops);
 
-  // Safety: re-enable even if 'ended' never fires (autoplay blocked etc.)
+  // Re-enable even if 'ended' never fires
   let done = false;
   const finish = () => {
     if (done) return;
@@ -360,10 +373,8 @@ async function runTeacherTurn(say, write_ops) {
 
   if (audio) {
     audio.addEventListener("ended", finish, { once: true });
-    // fallback timeout
-    setTimeout(finish, Math.min(30000, Math.max(5000, Math.floor(audio.duration * 1000) || 8000)));
+    setTimeout(finish, Math.min(30000, Math.max(5000, Math.floor((audio.duration || 5) * 1000))));
   } else {
-    // no audio received
     setTimeout(finish, 1500);
   }
 }
@@ -455,6 +466,7 @@ async function startSession() {
     if (!r.ok) throw new Error("start_session " + r.status);
     const data = await r.json();
     sessionId = data.session_id;
+    textInput.disabled = false; // enable input after session starts
     await runTeacherTurn(data.say || "Hello! What would you like to learn?", data.write_ops || []);
   } catch (e) {
     console.error(e);
