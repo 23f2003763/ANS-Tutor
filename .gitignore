@@ -1,4 +1,4 @@
-.venv/
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -6,3 +6,9 @@ __pycache__/
 *.sqlite3
 *.db
 .env
+
+# Node / misc
+node_modules/
+
+# Don’t commit virtualenvs or large local assets
+.venv/
