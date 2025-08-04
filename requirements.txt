@@ -1,10 +1,16 @@
-fastapi
-uvicorn[standard]
-transformers
-torch
-sentence-transformers
-openai-whisper
-ffmpeg-python
-TTS
-python-multipart
-reportlab
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+transformers==4.44.2
+accelerate==0.33.0
+huggingface_hub==0.24.6
+
+# CPU torch (Railway will pull Linux wheels)
+torch==2.2.2
+
+# Speech-to-text (CPU-friendly) + audio utils
+faster-whisper==1.0.3
+ffmpeg-python==0.2.0
+pydub==0.25.1
+gTTS==2.5.3
+
+reportlab==3.6.13
