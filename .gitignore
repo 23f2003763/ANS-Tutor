@@ -1,0 +1,25 @@
+# Python / env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+*.log
+
+# Mac / Editor
+.DS_Store
+.vscode/
+*.swp
+
+# Build / distribution
+dist/
+build/
+*.pyc
+
+# Model / data / large binaries (should be external)
+*.pt
+*.bin
+*.ckpt
+
+# Secrets
+*.env

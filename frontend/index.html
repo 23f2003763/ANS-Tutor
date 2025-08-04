@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ANS Tutor — Blackboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="white"/><text x="50" y="58" font-size="52" text-anchor="middle" fill="black">AI</text></svg>'>
+
+  <!-- MathJax (SVG) -->
+  <script>
+    window.MathJax = { loader: { load: ['input/tex', 'output/svg'] }, svg: { fontCache: 'local' } };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/startup.js"></script>
+
+  <!-- opentype.js will be lazy-loaded in app.js if missing -->
+
+  <style>
+    :root {
+      --bg:#ffffff; --board:#ffffff; --text:#0b0f12; --muted:#44525b;
+      --ink:#101314; --ink-strong:#b07b00; --ink-formula:#0057d8; --ink-code:#0a7d2a;
+      --border:#e6e9ec; --accent:#2f8fda;
+    }
+    @font-face { font-family: 'HandLatin'; src: url('./fonts/PatrickHand-Regular.ttf') format('truetype'); font-display: swap; }
+
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--text); }
+    .app { min-height:100vh; display:grid; grid-template-rows:auto 1fr; }
+
+    header { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--border); gap:10px; flex-wrap:wrap; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    select, button, textarea, input { font-size:.95rem; }
+    select, textarea, input { background:#f6f8fa; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; }
+
+    main.board { background:var(--board); position:relative; overflow:auto; padding:24px; }
+    .pen-layer { position:relative; min-height:100%; }
+
+    /* Chat panel (collapsible) */
+    .chat-toggle { position:fixed; right:16px; bottom:16px; z-index:10; }
+    .chat-panel {
+      position:fixed; right:16px; bottom:72px; width:460px; max-height:65vh;
+      display:none; flex-direction:column; border:1px solid var(--border); background:#f9fafb; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12);
+      overflow:hidden;
+    }
+    .chat-header { padding:8px 10px; border-bottom:1px solid var(--border); font-weight:600; display:flex; justify-content:space-between; align-items:center;}
+    .chat-body { padding:10px; overflow:auto; display:flex; flex-direction:column; gap:6px; background:#fff; }
+    .chat-input { border-top:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:8px; background:#f6f8fa; }
+    .msg { padding:8px 10px; border-radius:8px; max-width:92%; white-space:pre-wrap; }
+    .tutor { background:#eaf2ff; color:#0a2a7a; }
+    .student { background:#e8f8ed; color:#0a7d2a; }
+
+    button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 12px; font-weight:600; cursor:pointer; }
+    button.secondary { background:#e9ecef; color:#111; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    textarea { min-height:110px; resize:vertical; }
+
+    .indicator { font-size:.85rem; padding:2px 8px; border-radius:12px; background:#eef2f6; color:#5b6570; }
+    .statusbar { font-size:.85rem; color:#5b6570; }
+
+    /* Pen + path */
+    .pen-svg { width:100%; height:auto; }
+    .pen-path { fill:var(--ink); stroke:none; }
+    .pen-path.heading { fill:var(--ink-strong); }
+    .pen-cursor {
+      position:absolute; width:28px; height:28px; border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #333 10%, #000 70%);
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      pointer-events:none; transform: translate(-9999px, -9999px);
+      z-index:2;
+    }
+
+    .formula-box { border:2px solid var(--ink-formula); padding:8px 12px; border-radius:10px; display:inline-block; background:#eef5ff; margin:10px 0; transform:scale(1.15); transform-origin:left top; }
+    pre.code { background:#111; border:1px solid #222; border-radius:10px; padding:10px 12px; overflow:auto; color:#a3ffb0; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:.95rem; line-height:1.45; max-width:90%; }
+
+    /* Auth modal */
+    .modal {
+      position: fixed; inset:0; display:none; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.35);
+    }
+    .modal .card {
+      background:#fff; padding:16px; border-radius:10px; width:360px; box-shadow:0 12px 32px rgba(0,0,0,.25);
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .modal .actions { display:flex; gap:8px; justify-content:flex-end; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="row">
+        <strong>ANS Tutor — Blackboard</strong>
+        <label>Subject:
+          <select id="subject">
+            <option value="math" selected>Math</option>
+            <option value="physics">Physics</option>
+            <option value="chemistry">Chemistry</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <span class="indicator" id="who">Idle</span>
+        <span class="statusbar" id="status">Click “Start & Greet”</span>
+        <button id="loginBtn" class="secondary">Login</button>
+        <button id="startBtn" class="secondary">Start & Greet</button>
+        <button id="speakBtn" class="secondary" disabled>Speak</button>
+        <button id="downloadPdf" class="secondary" disabled>PDF</button>
+      </div>
+    </header>
+
+    <main class="board">
+      <div id="pen" class="pen-layer"></div>
+      <div id="penCursor" class="pen-cursor" aria-hidden="true"></div>
+    </main>
+
+    <!-- Collapsed chat -->
+    <button id="toggleChat" class="chat-toggle">💬 Chat</button>
+    <div id="chatPanel" class="chat-panel">
+      <div class="chat-header">
+        <span>Conversation</span>
+        <div>
+          <button id="sendBtn" class="secondary">Send</button>
+          <button id="closeChat" class="secondary">Close</button>
+        </div>
+      </div>
+      <div id="chat" class="chat-body"></div>
+      <div class="chat-input">
+        <textarea id="textInput" placeholder="Type your question and press Send…" disabled></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="card">
+      <h3 id="authTitle">Login / Sign up</h3>
+      <input id="email" type="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+      <div class="actions">
+        <button id="signup">Sign up</button>
+        <button id="signin" class="secondary">Login</button>
+        <button id="closeAuth" class="secondary">Close</button>
+      </div>
+      <small id="authMsg" style="color:#0a2a7a;"></small>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

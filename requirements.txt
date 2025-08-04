@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+transformers
+torch
+sentence-transformers
+openai-whisper
+ffmpeg-python
+TTS
+python-multipart
+reportlab
